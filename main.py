@@ -78,7 +78,15 @@ def gerar_apostas():
 
 @app.get("/gerar-bonus")
 def gerar_bonus():
-    return {"apostas": gerar_aposta_bonus()}
+    dezenas_frequentes = [3, 5, 8, 10, 12, 13, 14, 18, 22, 23, 25]
+    repetidas = [3, 6, 10, 14]
+    aposta = list(set(dezenas_frequentes + repetidas))
+    while len(aposta) < 15:
+        nova = random.randint(1, 25)
+        if nova not in aposta:
+            aposta.append(nova)
+    aposta.sort()
+    return {"apostas": [aposta]}
 
 @app.get("/gerar-experimental")
 def gerar_experimental():
