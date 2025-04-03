@@ -47,11 +47,12 @@ def gerar_aposta_experimental():
 # -------------------------------
 # Aposta Refinada: algoritmo genético simplificado
 # -------------------------------
-def gerar_aposta_refinada():
-    base = [1, 3, 4, 5, 7, 8, 10, 11, 12]
-    variaveis = [14, 17, 20, 23, 25]
-    aposta = sorted(base + random.sample(variaveis, 6 - len(set(base).intersection(variaveis))))
-    return [aposta]
+@app.get("/refinar-apostas")
+def refinar_apostas():
+    dezenas_fortes = [3, 5, 10, 12, 14, 18, 20, 23, 25]  # Mais frequentes e puxadoras
+    dezenas_variadas = random.sample([d for d in range(1, 26) if d not in dezenas_fortes], 6)
+    aposta = sorted(dezenas_fortes + dezenas_variadas)
+    return {"apostas": [aposta]}
 
 # -------------------------------
 # Modelo de análise da aposta
