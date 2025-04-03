@@ -1,8 +1,8 @@
-
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
+import random
 
 app = FastAPI()
 
@@ -23,6 +23,13 @@ class Aposta(BaseModel):
 
 class Resultado(BaseModel):
     apostas: List[Aposta]
+
+class AnaliseRequest(BaseModel):
+    dezenas: List[int]
+
+class AnaliseResponse(BaseModel):
+    parecer: str
+    dezenas: List[int]
 
 @app.get("/gerar", response_model=Resultado)
 def gerar_apostas(x_token: str = Header(...)):
@@ -58,6 +65,10 @@ def gerar_experimental(x_token: str = Header(...)):
         observacao="Aposta Experimental com dezenas frias + conexões ocultas"
     )
 
+@app.get("/status")
+def status_geral():
+    return {"status": "IA da Lotofácil operando com precisão total", "versao": "1.0.0", "protocolo": "Coerência ativa + Markov + Histórico 1000"}
+
 @app.get("/refinar", response_model=Resultado)
 def refinar_apostas(x_token: str = Header(...)):
     if x_token != API_KEY:
@@ -69,50 +80,16 @@ def refinar_apostas(x_token: str = Header(...)):
     ]
     return Resultado(apostas=apostas)
 
-@app.get("/status")
-def status_geral():
-    return {"status": "IA da Lotofácil operando com precisão total", "versao": "1.0.0", "protocolo": "Coerência ativa + Markov + Histórico 1000"}
-
-# Novo endpoint: /analisar
-class ApostaManual(BaseModel):
-    dezenas: List[int]
-
-class AnaliseResultado(BaseModel):
-    score: int
-    parecer: str
-    observacoes: List[str]
-
-@app.post("/analisar", response_model=AnaliseResultado)
-def analisar_aposta(aposta: ApostaManual, x_token: str = Header(...)):
+@app.post("/analisar", response_model=AnaliseResponse)
+def analisar_aposta(request: AnaliseRequest, x_token: str = Header(...)):
     if x_token != API_KEY:
         raise HTTPException(status_code=401, detail="Token inválido")
 
-    if len(aposta.dezenas) != 15:
-        raise HTTPException(status_code=400, detail="A aposta deve conter exatamente 15 dezenas")
-
-    dezenas = sorted(aposta.dezenas)
-    pares = [d for d in dezenas if d % 2 == 0]
-    primos = [d for d in dezenas if d in [2, 3, 5, 7, 11, 13, 17, 19, 23]]
-
-    score = 5
-    observacoes = []
-
-    if len(pares) >= 8:
-        observacoes.append("Alto número de pares: considere mais ímpares.")
-    else:
-        score += 1
-        observacoes.append("Distribuição de pares está equilibrada.")
-
-    if len(primos) >= 6:
-        score += 2
-        observacoes.append("Boa quantidade de primos.")
-    else:
-        observacoes.append("Poucos números primos.")
-
-    if dezenas[-1] > 23:
-        score += 1
-        observacoes.append("Inclui dezenas altas, boa estratégia.")
-
-    parecer = "Aposta coerente com padrões da IA." if score >= 7 else "Aposta precisa de ajustes para melhor performance."
-
-    return AnaliseResultado(score=score, parecer=parecer, observacoes=observacoes)
+    dezenas = request.dezenas
+    if len(dezenas) < 10:
+        return AnaliseResponse(parecer="Aposta fraca: menos de 10 dezenas.", dezenas=dezenas)
+    if 20 in dezenas and 25 in dezenas:
+        return AnaliseResponse(parecer="Padrão de fechamento detectado. Alta confiabilidade.", dezenas=dezenas)
+    if len(set(dezenas)) != len(dezenas):
+        return AnaliseResponse(parecer="Erro: Existem dezenas repetidas na aposta.", dezenas=dezenas)
+    return AnaliseResponse(parecer="Aposta válida, mas sem padrões fortes detectados.", dezenas=dezenas)
