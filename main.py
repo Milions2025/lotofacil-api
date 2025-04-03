@@ -90,7 +90,19 @@ def gerar_bonus():
 
 @app.get("/gerar-experimental")
 def gerar_experimental():
-    return {"apostas": gerar_aposta_experimental()}
+    dezenas_frias = [2, 4, 6, 7, 9, 11, 16]
+    base = dezenas_frias + [random.randint(1, 25) for _ in range(10)]
+
+    # Remover duplicatas e manter 15 dezenas
+    aposta = list(set(base))
+    while len(aposta) < 15:
+        dezena = random.randint(1, 25)
+        if dezena not in aposta:
+            aposta.append(dezena)
+
+    aposta.sort()
+    return {"apostas": [aposta]}
+
 
 @app.get("/gerar-refinar")
 def gerar_refinar():
