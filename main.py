@@ -1,161 +1,100 @@
-import React, { useState } from "react";
-import "./App.css";
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List
+import random
+from datetime import datetime
+import pytz
 
-const API_URL = "https://lotofacil-api.onrender.com";
+app = FastAPI()
 
-function App() {
-  const [apostas, setApostas] = useState([]);
-  const [origem, setOrigem] = useState("");
-  const [erro, setErro] = useState(null);
-  const [inputDezenas, setInputDezenas] = useState("");
-  const [analise, setAnalise] = useState(null);
-  const [historico, setHistorico] = useState([]);
-  const [filtro, setFiltro] = useState("");
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-  const fetchApostas = async (endpoint) => {
-    try {
-      setErro(null);
-      setAnalise(null);
-      const response = await fetch(`${API_URL}/${endpoint}`);
-      const data = await response.json();
+# Banco de dados temporário em memória
+historico_apostas = []
 
-      if (data.apostas || data.aposta) {
-        const apostasFormatadas = data.apostas || [data.aposta];
-        setApostas(apostasFormatadas);
-        setOrigem(data.origem);
-      } else {
-        setErro("Resposta inesperada da IA");
-        setApostas([]);
-        setOrigem("");
-      }
-    } catch (error) {
-      setErro("Erro ao buscar apostas");
-      setApostas([]);
-      setOrigem("");
+# Utilidade para fuso horário de Brasília
+def horario_brasilia():
+    fuso_brasilia = pytz.timezone("America/Sao_Paulo")
+    agora = datetime.now(fuso_brasilia)
+    return agora.strftime("%d/%m/%Y %H:%M:%S")
+
+# Funções de geração
+
+def gerar_aposta(tipo: str):
+    dezenas_disponiveis = list(range(1, 26))
+    random.shuffle(dezenas_disponiveis)
+    aposta = sorted(dezenas_disponiveis[:15])
+    historico_apostas.append({
+        "origem": tipo,
+        "dezenas": aposta,
+        "data": horario_brasilia()
+    })
+    return aposta
+
+def gerar_apostas_ia():
+    apostas = []
+    for _ in range(3):
+        aposta = gerar_aposta("gerar-apostas")
+        apostas.append(aposta)
+    return apostas
+
+def analisar_aposta_manual(dezenas):
+    pares = len([d for d in dezenas if d % 2 == 0])
+    primos = len([d for d in dezenas if d in [2, 3, 5, 7, 11, 13, 17, 19, 23]])
+    repetidas = len(set(dezenas)) != len(dezenas)
+    score = round((15 + primos + pares) / 5.5, 2)
+    return {
+        "pares": pares,
+        "primos": primos,
+        "repetidas": "Sim" if repetidas else "Não",
+        "score": score,
+        "avaliacao": "Alta chance de acerto" if score >= 6 else "Aposta comum"
     }
-  };
 
-  const fetchHistorico = async () => {
-    try {
-      const response = await fetch(`${API_URL}/historico-apostas`);
-      const data = await response.json();
-      setHistorico(data.historico || []);
-    } catch (error) {
-      setErro("Erro ao buscar histórico");
-    }
-  };
+# Modelo para POST
+class ApostaManual(BaseModel):
+    dezenas: List[int]
 
-  const analisarAposta = async () => {
-    try {
-      setErro(null);
-      const dezenas = inputDezenas
-        .split(",")
-        .map((d) => parseInt(d.trim()))
-        .filter((n) => !isNaN(n));
+# Endpoints principais
+@app.get("/gerar-apostas")
+def gerar_apostas():
+    apostas = gerar_apostas_ia()
+    return {"origem": "gerar-apostas", "apostas": apostas}
 
-      const response = await fetch(`${API_URL}/analisar-aposta`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ dezenas }),
-      });
+@app.get("/gerar-aposta-bonus")
+def gerar_bonus():
+    aposta = gerar_aposta("aposta-bonus")
+    return {"origem": "aposta-bonus", "aposta": aposta}
 
-      const data = await response.json();
+@app.get("/gerar-aposta-experimental")
+def gerar_experimental():
+    aposta = gerar_aposta("aposta-experimental")
+    return {"origem": "aposta-experimental", "aposta": aposta}
 
-      if (data && data.score !== undefined) {
-        setAnalise(data);
-        setOrigem(data.origem);
-      } else {
-        setErro("Resposta inesperada da IA");
-        setAnalise(null);
-      }
-    } catch (error) {
-      setErro("Erro ao analisar a aposta");
-      setAnalise(null);
-    }
-  };
+@app.get("/gerar-aposta-refinada")
+def gerar_refinada():
+    aposta = gerar_aposta("refinar")
+    return {"origem": "refinar", "aposta": aposta}
 
-  const contarRepeticoes = () => {
-    const contagem = {};
-    historico.forEach((item) => {
-      item.dezenas.forEach((dezena) => {
-        contagem[dezena] = (contagem[dezena] || 0) + 1;
-      });
-    });
-    const pares = Object.entries(contagem)
-      .sort((a, b) => b[1] - a[1])
-      .map(([dez, qtd]) => `${dez}: ${qtd}x`);
-    return pares;
-  };
+@app.post("/analisar-aposta")
+def analisar_aposta(aposta: ApostaManual):
+    try:
+        analise = analisar_aposta_manual(aposta.dezenas)
+        return {
+            "origem": "analisar-aposta",
+            "dezenas": aposta.dezenas,
+            **analise
+        }
+    except Exception as e:
+        return {"erro": str(e)}
 
-  const historicoFiltrado = historico.filter((item) =>
-    filtro ? item.origem.includes(filtro) : true
-  );
-
-  return (
-    <div className="App">
-
-
-      <div>
-        <button onClick={() => fetchApostas("gerar-apostas")}>Gerar Apostas</button>
-        <button onClick={() => fetchApostas("gerar-aposta-bonus")}>Aposta Bônus</button>
-        <button onClick={() => fetchApostas("gerar-aposta-experimental")}>Experimental</button>
-        <button onClick={() => fetchApostas("gerar-aposta-refinada")}>Refinar</button>
-        <button onClick={fetchHistorico}>📜 Ver Histórico</button>
-      </div>
-
-      <h3>📊 Apostas Geradas:</h3>
-      {erro && <p style={{ color: "red" }}>❌ {erro}</p>}
-      {origem && <p><strong>🧠 Função executada:</strong> {origem}</p>}
-      <ul>
-        {apostas.map((aposta, index) => (
-          <li key={index}>{aposta.join(", ")}</li>
-        ))}
-      </ul>
-
-      <h3>🧠 Analisar Aposta Manual:</h3>
-      <input
-        type="text"
-        value={inputDezenas}
-        onChange={(e) => setInputDezenas(e.target.value)}
-        placeholder="Ex: 1,3,5,8,10,12,14,17..."
-      />
-      <button onClick={analisarAposta}>Analisar Aposta</button>
-
-      {analise && (
-        <div>
-          <p>✅ <strong>Dezenas:</strong> {analise.dezenas.join(", ")}</p>
-          <p>🔢 <strong>Pares:</strong> {analise.pares}</p>
-          <p>🔢 <strong>Primos:</strong> {analise.primos}</p>
-          <p>📘 <strong>Repetidas:</strong> {analise.repetidas}</p>
-          <p>📊 <strong>Avaliação:</strong> {analise.avaliacao} (Score: {analise.score})</p>
-        </div>
-      )}
-
-      <h3>📜 Histórico de Apostas:</h3>
-      <input
-        type="text"
-        placeholder="Filtrar por tipo..."
-        value={filtro}
-        onChange={(e) => setFiltro(e.target.value)}
-      />
-      <ul>
-        {historicoFiltrado.map((item, idx) => (
-          <li key={idx}>
-            <strong>{item.origem}</strong> | {item.data} → {item.dezenas.join(", ")}
-          </li>
-        ))}
-      </ul>
-
-      <h3>📈 Frequência de Dezenas (Todas):</h3>
-      <ul>
-        {contarRepeticoes().map((linha, idx) => (
-          <li key={idx}>{linha}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-export default App;
+@app.get("/historico")
+def ver_historico():
+    return {"total": len(historico_apostas), "dados": historico_apostas}
