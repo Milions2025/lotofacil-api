@@ -1,11 +1,14 @@
-from fastapi import FastAPI, Header, HTTPException
+// FastAPI backend para conectar a IA da Lotofácil ao aplicativo mobile
+# Versão atualizada com suporte completo ao painel web e análise de apostas manuais
+
+from fastapi import FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 from fastapi.middleware.cors import CORSMiddleware
-import random
 
 app = FastAPI()
 
+# Libera acesso CORS para o frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,8 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_KEY = "mestre-secreto"
-
+# Modelos de dados
 class Aposta(BaseModel):
     dezenas: List[int]
     score: int
@@ -24,12 +26,7 @@ class Aposta(BaseModel):
 class Resultado(BaseModel):
     apostas: List[Aposta]
 
-class AnaliseRequest(BaseModel):
-    dezenas: List[int]
-
-class AnaliseResponse(BaseModel):
-    parecer: str
-    dezenas: List[int]
+API_KEY = "mestre-secreto"
 
 @app.get("/gerar", response_model=Resultado)
 def gerar_apostas(x_token: str = Header(...)):
@@ -67,7 +64,11 @@ def gerar_experimental(x_token: str = Header(...)):
 
 @app.get("/status")
 def status_geral():
-    return {"status": "IA da Lotofácil operando com precisão total", "versao": "1.0.0", "protocolo": "Coerência ativa + Markov + Histórico 1000"}
+    return {
+        "status": "IA da Lotofácil operando com precisão total",
+        "versao": "1.0.0",
+        "protocolo": "Coerência ativa + Markov + Histórico 1000"
+    }
 
 @app.get("/refinar", response_model=Resultado)
 def refinar_apostas(x_token: str = Header(...)):
@@ -80,16 +81,28 @@ def refinar_apostas(x_token: str = Header(...)):
     ]
     return Resultado(apostas=apostas)
 
-@app.post("/analisar", response_model=AnaliseResponse)
-def analisar_aposta(request: AnaliseRequest, x_token: str = Header(...)):
+@app.get("/analisar")
+def analisar_aposta(dezenas: str = Query(...), x_token: str = Header(...)):
     if x_token != API_KEY:
         raise HTTPException(status_code=401, detail="Token inválido")
 
-    dezenas = request.dezenas
-    if len(dezenas) < 10:
-        return AnaliseResponse(parecer="Aposta fraca: menos de 10 dezenas.", dezenas=dezenas)
-    if 20 in dezenas and 25 in dezenas:
-        return AnaliseResponse(parecer="Padrão de fechamento detectado. Alta confiabilidade.", dezenas=dezenas)
-    if len(set(dezenas)) != len(dezenas):
-        return AnaliseResponse(parecer="Erro: Existem dezenas repetidas na aposta.", dezenas=dezenas)
-    return AnaliseResponse(parecer="Aposta válida, mas sem padrões fortes detectados.", dezenas=dezenas)
+    try:
+        numeros = list(map(int, dezenas.split(",")))
+        if len(numeros) < 15:
+            return {"avaliacao": "Aposta com menos de 15 dezenas. Complete para análise completa."}
+
+        pares = len([d for d in numeros if d % 2 == 0])
+        primos = len([d for d in numeros if d in [2, 3, 5, 7, 11, 13, 17, 19, 23]])
+        repetidas = len([d for d in numeros if numeros.count(d) > 1])
+        recomendacao = "Aposta com boa variedade." if pares >= 6 and primos >= 4 else "Reveja pares e primos. Pouca variedade."
+
+        return {
+            "dezenas": numeros,
+            "pares": pares,
+            "primos": primos,
+            "repetidas": repetidas,
+            "avaliacao": recomendacao
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao processar a análise: {str(e)}")
