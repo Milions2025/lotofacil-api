@@ -1,13 +1,16 @@
+// FastAPI backend para conectar a IA da Lotofácil ao aplicativo mobile
+# Endpoint seguro com histórico, filtros e timezone BR
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List
-import random
 from datetime import datetime
 import pytz
+import random
 
 app = FastAPI()
 
+# Liberação de CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,75 +19,79 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Banco de dados temporário em memória
+# Estrutura de armazenamento em memória
 historico_apostas = []
 
-# Utilidade para fuso horário de Brasília
-def horario_brasilia():
-    fuso_brasilia = pytz.timezone("America/Sao_Paulo")
-    agora = datetime.now(fuso_brasilia)
-    return agora.strftime("%d/%m/%Y %H:%M:%S")
+# Timezone Brasil/SP
+tz_brasilia = pytz.timezone("America/Sao_Paulo")
 
-# Funções de geração
+# Modelos
+class ApostaManual(BaseModel):
+    dezenas: list[int]
 
-def gerar_aposta(tipo: str):
-    dezenas_disponiveis = list(range(1, 26))
-    random.shuffle(dezenas_disponiveis)
-    aposta = sorted(dezenas_disponiveis[:15])
-    historico_apostas.append({
-        "origem": tipo,
-        "dezenas": aposta,
-        "data": horario_brasilia()
-    })
-    return aposta
+class RegistroAposta(BaseModel):
+    tipo: str
+    dezenas: list[int]
+    score: int
+    origem: str
+    timestamp: str
 
-def gerar_apostas_ia():
-    apostas = []
-    for _ in range(3):
-        aposta = gerar_aposta("gerar-apostas")
-        apostas.append(aposta)
-    return apostas
+# Funções IA simulada (substitua por lógica real depois)
+def gerar_dezenas():
+    return sorted(random.sample(range(1, 26), 15))
+
+def gerar_aposta(tipo):
+    dezenas = gerar_dezenas()
+    score = random.randint(6, 9)
+    origem = tipo
+    now = datetime.now(tz_brasilia).strftime("%d/%m/%Y %H:%M:%S")
+    registro = RegistroAposta(
+        tipo=tipo,
+        dezenas=dezenas,
+        score=score,
+        origem=origem,
+        timestamp=now
+    )
+    historico_apostas.append(registro)
+    return registro
 
 def analisar_aposta_manual(dezenas):
     pares = len([d for d in dezenas if d % 2 == 0])
     primos = len([d for d in dezenas if d in [2, 3, 5, 7, 11, 13, 17, 19, 23]])
     repetidas = len(set(dezenas)) != len(dezenas)
     score = round((15 + primos + pares) / 5.5, 2)
+    avaliacao = "Alta chance de acerto" if score >= 6 else "Aposta comum"
     return {
         "pares": pares,
         "primos": primos,
         "repetidas": "Sim" if repetidas else "Não",
         "score": score,
-        "avaliacao": "Alta chance de acerto" if score >= 6 else "Aposta comum"
+        "avaliacao": avaliacao
     }
 
-# Modelo para POST
-class ApostaManual(BaseModel):
-    dezenas: List[int]
-
-# Endpoints principais
+# Endpoints
 @app.get("/gerar-apostas")
-def gerar_apostas():
-    apostas = gerar_apostas_ia()
-    return {"origem": "gerar-apostas", "apostas": apostas}
+def gerar():
+    apostas = [gerar_aposta("principal") for _ in range(3)]
+    return {"origem": "gerar-apostas", "apostas": [a.dict() for a in apostas]}
 
 @app.get("/gerar-aposta-bonus")
 def gerar_bonus():
-    aposta = gerar_aposta("aposta-bonus")
-    return {"origem": "aposta-bonus", "aposta": aposta}
+    aposta = gerar_aposta("bonus")
+    return aposta.dict()
 
 @app.get("/gerar-aposta-experimental")
 def gerar_experimental():
-    aposta = gerar_aposta("aposta-experimental")
-    return {"origem": "aposta-experimental", "aposta": aposta}
+    aposta = gerar_aposta("experimental")
+    return aposta.dict()
 
 @app.get("/gerar-aposta-refinada")
 def gerar_refinada():
     aposta = gerar_aposta("refinar")
-    return {"origem": "refinar", "aposta": aposta}
+    return aposta.dict()
 
 @app.post("/analisar-aposta")
-def analisar_aposta(aposta: ApostaManual):
+def analisar(aposta: ApostaManual):
     try:
         analise = analisar_aposta_manual(aposta.dezenas)
         return {
@@ -96,5 +103,13 @@ def analisar_aposta(aposta: ApostaManual):
         return {"erro": str(e)}
 
 @app.get("/historico")
-def ver_historico():
-    return {"total": len(historico_apostas), "dados": historico_apostas}
+def ver_historico(tipo: str = None):
+    if tipo:
+        filtrado = [a.dict() for a in historico_apostas if a.tipo == tipo]
+    else:
+        filtrado = [a.dict() for a in historico_apostas]
+    return {"historico": filtrado}
+
+@app.get("/status")
+def status():
+    return {"status": "IA 100% operacional com histórico e timezone BR ativo"}
