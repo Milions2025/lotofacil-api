@@ -49,11 +49,11 @@ def gerar_aposta_experimental():
 # -------------------------------
 @app.get("/refinar-apostas")
 def refinar_apostas():
-    dezenas_fortes = [3, 5, 10, 12, 14, 18, 20, 23, 25]  # Mais frequentes e puxadoras
-    dezenas_variadas = random.sample([d for d in range(1, 26) if d not in dezenas_fortes], 6)
-    aposta = sorted(dezenas_fortes + dezenas_variadas)
-    return {"apostas": [aposta]}
-
+    dezenas_fortes = [3, 5, 10, 12, 14, 18, 20, 23, 25]  # Dezenas mais fortes segundo a IA
+    dezenas_restantes = [d for d in range(1, 26) if d not in dezenas_fortes]
+    dezenas_variadas = random.sample(dezenas_restantes, 6)
+    aposta_refinada = sorted(dezenas_fortes[:9] + dezenas_variadas)
+    return {"apostas": [aposta_refinada]}
 # -------------------------------
 # Modelo de análise da aposta
 # -------------------------------
