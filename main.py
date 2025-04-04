@@ -24,7 +24,7 @@ banco_apostas = []
 
 # Simulação de pesos baseados em frequência de sorteios (exemplo fictício)
 pesos_dezenas = {
-    i: random.randint(1, 100) for i in range(1, 26)
+    i: random.randint(1, 100) for i in range(1, 25)
 }
 
 def gerar_aposta_coerente():
