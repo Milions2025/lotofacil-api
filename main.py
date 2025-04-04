@@ -1,8 +1,8 @@
-
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from datetime import datetime
-import pytz
+from collections import Counter
 
 app = FastAPI()
 
@@ -13,51 +13,51 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-historico_data = []
-frequencia_data = [{"dezena": i, "frequencia": (25 - i)} for i in range(1, 26)]  # Exemplo
+class ApostaRequest(BaseModel):
+    dezenas: list[int]
+    tipo: str
+    data: str
 
-def gerar_dezenas():
-    from random import sample
-    return sorted(sample(range(1, 26), 15))
-
-def registrar(tipo, dezenas):
-    data = datetime.now(pytz.timezone("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M:%S")
-    historico_data.append({"tipo": tipo, "data": data, "dezenas": dezenas})
-    return {"tipo": tipo, "data": data, "dezenas": dezenas}
-
-@app.get("/")
-def raiz():
-    return {"mensagem": "API da IA Lotofácil Online"}
+# Banco de dados temporário
+banco_apostas = []
 
 @app.get("/gerar-apostas")
 def gerar_apostas():
-    apostas = [gerar_dezenas() for _ in range(3)]
-    for jogo in apostas:
-        registrar("Aposta Normal", jogo)
+    apostas = [
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 1, 3, 5],
+        [5, 10, 15, 20, 25, 1, 6, 11, 16, 21, 2, 7, 12, 17, 22]
+    ]
     return {"apostas": apostas}
 
 @app.get("/gerar-aposta-bonus")
-def gerar_aposta_bonus():
-    dezenas = gerar_dezenas()
-    registrar("Aposta Bônus", dezenas)
-    return {"aposta": dezenas}
+def gerar_bonus():
+    return {"aposta": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]}
 
 @app.get("/gerar-aposta-experimental")
-def gerar_aposta_experimental():
-    dezenas = gerar_dezenas()
-    registrar("Aposta Experimental", dezenas)
-    return {"aposta": dezenas}
+def gerar_experimental():
+    return {"aposta": [5, 10, 15, 20, 25, 4, 9, 14, 19, 24, 3, 8, 13, 18, 23]}
 
 @app.get("/gerar-aposta-refinada")
-def gerar_aposta_refinada():
-    dezenas = gerar_dezenas()
-    registrar("Aposta Refinada", dezenas)
-    return {"aposta": dezenas}
+def gerar_refinada():
+    return {"aposta": [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 1, 3, 5]}
+
+@app.post("/registrar-aposta")
+def registrar_aposta(aposta: ApostaRequest):
+    banco_apostas.append(aposta.dict())
+    return {"status": "registrado", "aposta": aposta.dict()}
 
 @app.get("/historico")
-def obter_historico():
-    return historico_data
+def listar_historico():
+    return banco_apostas
 
 @app.get("/frequencia")
-def obter_frequencia():
-    return frequencia_data
+def calcular_frequencia():
+    # Considera apenas apostas registradas do tipo resultado-real
+    registros = [r for r in banco_apostas if r["tipo"] == "resultado-real"]
+    todas = [dezena for reg in registros for dezena in reg["dezenas"]]
+    contagem = Counter(todas)
+    resultado = [
+        {"dezena": i, "frequencia": contagem.get(i, 0)} for i in range(1, 26)
+    ]
+    return resultado
