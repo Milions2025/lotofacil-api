@@ -1,15 +1,13 @@
-from fastapi import FastAPI, Request
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 import pytz
-import random
-import json
-import os
 
 app = FastAPI()
 
-# Liberação de CORS
+# Configuração de CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,102 +16,65 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Caminho para salvar apostas
-HISTORICO_PATH = "historico_apostas.json"
+# Memória temporária para simulação
+historico_apostas = []
+frequencia_dezenas = {}
 
-# -------------------------------
-# FUNÇÕES INTERNAS
-# -------------------------------
-
-def salvar_aposta(tipo, aposta):
-    zona = pytz.timezone("America/Sao_Paulo")
-    data_hora = datetime.now(zona).strftime("%Y-%m-%d %H:%M:%S")
-    nova_aposta = {"tipo": tipo, "aposta": aposta, "data": data_hora}
-
-    if os.path.exists(HISTORICO_PATH):
-        with open(HISTORICO_PATH, "r", encoding="utf-8") as f:
-            historico = json.load(f)
-    else:
-        historico = []
-
-    historico.insert(0, nova_aposta)
-    with open(HISTORICO_PATH, "w", encoding="utf-8") as f:
-        json.dump(historico, f, indent=2, ensure_ascii=False)
-
-def carregar_historico():
-    if os.path.exists(HISTORICO_PATH):
-        with open(HISTORICO_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
-
-def gerar_dezenas():
-    return sorted(random.sample(range(1, 26), 15))
-
-def dezenas_repetidas(historico):
-    contagem = {}
-    for entrada in historico:
-        for dezena in entrada["aposta"]:
-            contagem[dezena] = contagem.get(dezena, 0) + 1
-    return sorted(contagem.items(), key=lambda x: x[1], reverse=True)
-
-# -------------------------------
-# MODELOS
-# -------------------------------
-
-class ApostaManual(BaseModel):
+# Modelos de dados
+class ApostaInput(BaseModel):
+    origem: str
     dezenas: list[int]
 
-# -------------------------------
-# ENDPOINTS
-# -------------------------------
+class ResultadoInput(BaseModel):
+    dezenas: list[int]
 
-@app.get("/gerar-apostas")
-def gerar_apostas():
-    apostas = [gerar_dezenas() for _ in range(3)]
-    for aposta in apostas:
-        salvar_aposta("gerar-apostas", aposta)
-    return {"origem": "gerar-apostas", "apostas": apostas}
+# Função para horário de Brasília
+def horario_brasilia():
+    fuso_brasilia = pytz.timezone("America/Sao_Paulo")
+    return datetime.now(fuso_brasilia).strftime("%Y-%m-%d %H:%M:%S")
 
-@app.get("/gerar-aposta-bonus")
-def gerar_aposta_bonus():
-    aposta = gerar_dezenas()
-    salvar_aposta("aposta-bonus", aposta)
-    return {"origem": "aposta-bonus", "aposta": aposta}
-
-@app.get("/gerar-aposta-experimental")
-def gerar_aposta_experimental():
-    aposta = gerar_dezenas()
-    salvar_aposta("aposta-experimental", aposta)
-    return {"origem": "aposta-experimental", "aposta": aposta}
-
-@app.get("/gerar-aposta-refinada")
-def gerar_aposta_refinada():
-    aposta = gerar_dezenas()
-    salvar_aposta("refinar", aposta)
-    return {"origem": "refinar", "aposta": aposta}
-
-@app.post("/analisar-aposta")
-def analisar_aposta(aposta: ApostaManual):
-    pares = len([d for d in aposta.dezenas if d % 2 == 0])
-    primos = len([d for d in aposta.dezenas if d in [2, 3, 5, 7, 11, 13, 17, 19, 23]])
-    repetidas = len(set(aposta.dezenas)) != len(aposta.dezenas)
-    score = round((15 + primos + pares) / 5.5, 2)
-    return {
-        "origem": "analisar-aposta",
+# Registrar aposta
+@app.post("/gerar-apostas")
+def gerar_aposta(aposta: ApostaInput):
+    registro = {
+        "tipo": "gerar-apostas",
+        "origem": aposta.origem,
         "dezenas": aposta.dezenas,
-        "pares": pares,
-        "primos": primos,
-        "repetidas": "Sim" if repetidas else "Não",
-        "score": score,
-        "avaliacao": "Alta chance de acerto" if score >= 6 else "Aposta comum"
+        "data": horario_brasilia(),
     }
+    historico_apostas.append(registro)
+    return {"status": "ok", "aposta": registro}
 
-@app.get("/historico-apostas")
-def historico_apostas():
-    return {"historico": carregar_historico()}
+# Refinar aposta
+@app.post("/refinar-apostas")
+def refinar_aposta(aposta: ApostaInput):
+    registro = {
+        "tipo": "refinar-apostas",
+        "origem": aposta.origem,
+        "dezenas": aposta.dezenas,
+        "data": horario_brasilia(),
+    }
+    historico_apostas.append(registro)
+    return {"status": "ok", "aposta": registro}
 
-@app.get("/frequencia-dezenas")
-def frequencia_dezenas():
-    historico = carregar_historico()
-    repetidas = dezenas_repetidas(historico)
-    return {"frequencia": repetidas}
+# Consultar status
+@app.get("/status")
+def consultar_status():
+    return {"status": "ativo", "quantidade_apostas": len(historico_apostas)}
+
+# Enviar resultado real
+@app.post("/resultado")
+def enviar_resultado(resultado: ResultadoInput):
+    for dezena in resultado.dezenas:
+        frequencia_dezenas[dezena] = frequencia_dezenas.get(dezena, 0) + 1
+    return {"status": "resultado registrado"}
+
+# Histórico
+@app.get("/historico")
+def obter_historico():
+    return historico_apostas
+
+# Frequência
+@app.get("/frequencia")
+def obter_frequencia():
+    return dict(sorted(frequencia_dezenas.items(), key=lambda item: item[1], reverse=True))
