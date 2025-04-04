@@ -86,6 +86,32 @@ function App() {
       {resposta && <p><strong>Resposta:</strong> {resposta}</p>}
 
       <hr />
+      <h3>Apostas Geradas</h3>
+      {apostas.map((aposta, idx) => (
+        <p key={idx}>{aposta.join(", ")}</p>
+      ))}
+
+      {apostaBonus && (
+        <div>
+          <h3>Aposta Bônus</h3>
+          <p>{apostaBonus.join(", ")}</p>
+        </div>
+      )}
+
+      {apostaExperimental && (
+        <div>
+          <h3>Status da IA (Experimental)</h3>
+          <p>{apostaExperimental.join(", ")}</p>
+        </div>
+      )}
+
+      {apostaRefinada && (
+        <div>
+          <h3>Aposta Refinada</h3>
+          <p>{apostaRefinada.join(", ")}</p>
+        </div>
+      )}
+
       <h3>Histórico de Apostas</h3>
       {historico.length === 0 ? (
         <p>Nenhuma aposta encontrada.</p>
