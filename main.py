@@ -63,7 +63,7 @@ export default function App() {
 
       {erro && <p style={{ color: 'red' }}>{erro}</p>}
 
-      <h3>⭐ Dezenas Mais Repetidas</h3>
+    html += "<h3>⭐ Dezenas Mais Repetidas</h3>"
       <ul>
         {frequencia.map((item, idx) => (
           <li key={idx}>
