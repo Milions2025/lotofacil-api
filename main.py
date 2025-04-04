@@ -24,7 +24,7 @@ banco_apostas = []
 
 # Função central de geração da IA (garante coerência e sem duplicatas)
 def gerar_aposta_ia():
-    return sorted(random.sample(range(1, 26), 15))
+    return sorted(random.sample(range(1, 25), 15))
 
 @app.get("/gerar-apostas")
 def gerar_apostas():
@@ -82,6 +82,6 @@ def calcular_frequencia():
     todas = [dezena for reg in registros for dezena in reg["dezenas"]]
     contagem = Counter(todas)
     resultado = [
-        {"dezena": i, "frequencia": contagem.get(i, 0)} for i in range(1, 26)
+        {"dezena": i, "frequencia": contagem.get(i, 0)} for i in range(1, 25)
     ]
     return resultado
