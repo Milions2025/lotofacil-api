@@ -1,144 +1,68 @@
-// App.js
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import random
+from datetime import datetime
+import pytz
 
-function App() {
-  const [apostas, setApostas] = useState([]);
-  const [apostaBonus, setApostaBonus] = useState(null);
-  const [apostaExperimental, setApostaExperimental] = useState(null);
-  const [apostaRefinada, setApostaRefinada] = useState(null);
-  const [historico, setHistorico] = useState([]);
-  const [frequencia, setFrequencia] = useState([]);
-  const [resposta, setResposta] = useState("");
+app = FastAPI()
 
-  useEffect(() => {
-    fetchHistorico();
-    fetchFrequencia();
-  }, []);
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-  const fetchApostas = async () => {
-    try {
-      const response = await axios.get("https://lotofacil-api.onrender.com/gerar-apostas");
-      setApostas(response.data.apostas || []);
-      setResposta("Apostas geradas com sucesso.");
-    } catch (error) {
-      console.error("Erro ao gerar apostas:", error);
-      setResposta("Erro ao gerar aposta.");
-    }
-  };
+# Base de dados simulada
+historico = []
+frequencia = {i: 0 for i in range(1, 26)}
 
-  const fetchBonus = async () => {
-    try {
-      const response = await axios.get("https://lotofacil-api.onrender.com/gerar-aposta-bonus");
-      setApostaBonus(response.data.aposta);
-    } catch (error) {
-      console.error("Erro ao gerar bônus:", error);
-    }
-  };
+# Modelos de resposta
+class ApostaResponse(BaseModel):
+    aposta: list
 
-  const fetchExperimental = async () => {
-    try {
-      const response = await axios.get("https://lotofacil-api.onrender.com/gerar-aposta-experimental");
-      setApostaExperimental(response.data.aposta);
-    } catch (error) {
-      console.error("Erro ao gerar experimental:", error);
-    }
-  };
+class ApostasResponse(BaseModel):
+    apostas: list
 
-  const fetchRefinada = async () => {
-    try {
-      const response = await axios.get("https://lotofacil-api.onrender.com/gerar-aposta-refinada");
-      setApostaRefinada(response.data.aposta);
-    } catch (error) {
-      console.error("Erro ao gerar refinada:", error);
-    }
-  };
+def gerar_aposta():
+    aposta = sorted(random.sample(range(1, 26), 15))
+    for d in aposta:
+        frequencia[d] += 1
+    historico.append({
+        "tipo": "Aposta Normal",
+        "data": datetime.now(pytz.timezone("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M"),
+        "dezenas": aposta
+    })
+    return aposta
 
-  const fetchHistorico = async () => {
-    try {
-      const response = await axios.get("https://lotofacil-api.onrender.com/historico");
-      setHistorico(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      console.error("Erro ao buscar histórico:", error);
-    }
-  };
+@app.get("/gerar-apostas", response_model=ApostasResponse)
+def gerar_apostas():
+    apostas = [gerar_aposta() for _ in range(3)]
+    return {"apostas": apostas}
 
-  const fetchFrequencia = async () => {
-    try {
-      const response = await axios.get("https://lotofacil-api.onrender.com/frequencia");
-      const dados = response.data;
-      setFrequencia(Array.isArray(dados) ? dados : []);
-    } catch (error) {
-      console.error("Erro ao buscar frequência:", error);
-      setFrequencia([]);
-    }
-  };
+@app.get("/gerar-aposta-bonus", response_model=ApostaResponse)
+def gerar_aposta_bonus():
+    aposta = gerar_aposta()
+    historico[-1]["tipo"] = "Aposta Bônus"
+    return {"aposta": aposta}
 
-  return (
-    <div style={{ padding: 20 }}>
-      <h2>Painel IA da Lotofácil</h2>
+@app.get("/gerar-aposta-experimental", response_model=ApostaResponse)
+def gerar_aposta_experimental():
+    aposta = gerar_aposta()
+    historico[-1]["tipo"] = "Aposta Experimental"
+    return {"aposta": aposta}
 
-      <button onClick={fetchApostas}>Gerar Aposta</button>
-      <button onClick={fetchRefinada}>Refinar Aposta</button>
-      <button onClick={fetchExperimental}>Status da IA</button>
-      <button onClick={fetchBonus}>Enviar Resultado Real</button>
+@app.get("/gerar-aposta-refinada", response_model=ApostaResponse)
+def gerar_aposta_refinada():
+    aposta = gerar_aposta()
+    historico[-1]["tipo"] = "Aposta Refinada"
+    return {"aposta": aposta}
 
-      {resposta && <p><strong>Resposta:</strong> {resposta}</p>}
+@app.get("/historico")
+def obter_historico():
+    return historico
 
-      <hr />
-      <h3>Apostas Geradas</h3>
-      {apostas.map((aposta, idx) => (
-        <p key={idx}>{aposta.join(", ")}</p>
-      ))}
-
-      {apostaBonus && (
-        <div>
-          <h3>Aposta Bônus</h3>
-          <p>{apostaBonus.join(", ")}</p>
-        </div>
-      )}
-
-      {apostaExperimental && (
-        <div>
-          <h3>Status da IA (Experimental)</h3>
-          <p>{apostaExperimental.join(", ")}</p>
-        </div>
-      )}
-
-      {apostaRefinada && (
-        <div>
-          <h3>Aposta Refinada</h3>
-          <p>{apostaRefinada.join(", ")}</p>
-        </div>
-      )}
-
-      <h3>Histórico de Apostas</h3>
-      {historico.length === 0 ? (
-        <p>Nenhuma aposta encontrada.</p>
-      ) : (
-        <ul>
-          {historico.map((item, index) => (
-            <li key={index}>
-              <strong>{item.tipo}</strong> | {item.data} | {item.dezenas.join(", ")}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <h3>Dezenas Mais Repetidas</h3>
-      {frequencia.length === 0 ? (
-        <p>Frequência ainda não disponível.</p>
-      ) : (
-        <ul>
-          {frequencia.map((item, index) => (
-            <li key={index}>
-              Dezena {item.dezena}: {item.frequencia}x
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-export default App;
+@app.get("/frequencia")
+def obter_frequencia():
+    return [{"dezena": k, "frequencia": v} for k, v in frequencia.items()]
