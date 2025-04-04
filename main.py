@@ -24,12 +24,11 @@ banco_apostas = []
 
 # Função central de geração da IA (garante coerência e sem duplicatas)
 def gerar_aposta_ia():
-    return sorted(random.sample(range(1, 25), 15))
+    return sorted(random.sample(range(1, 26), 15))
 
 @app.get("/gerar-apostas")
 def gerar_apostas():
     apostas = [gerar_aposta_ia() for _ in range(3)]
-    # Registra as apostas geradas no histórico
     data_atual = datetime.now().strftime("%Y-%m-%d")
     for aposta in apostas:
         banco_apostas.append({
@@ -51,14 +50,14 @@ def gerar_experimental():
     aposta = gerar_aposta_ia()
     data_atual = datetime.now().strftime("%Y-%m-%d")
     banco_apostas.append({"dezenas": aposta, "tipo": "experimental", "data": data_atual})
-    return {"aposta": aposta}
+    return {"aposta": aposta, "status": "experimental gerada com coerência"}
 
 @app.get("/gerar-aposta-refinada")
 def gerar_refinada():
     aposta = gerar_aposta_ia()
     data_atual = datetime.now().strftime("%Y-%m-%d")
     banco_apostas.append({"dezenas": aposta, "tipo": "refinada", "data": data_atual})
-    return {"aposta": aposta}
+    return {"aposta": aposta, "status": "refinada conectada com IA central"}
 
 @app.post("/registrar-aposta")
 def registrar_aposta(aposta: ApostaRequest):
@@ -72,6 +71,10 @@ def registrar_resultado(aposta: ApostaRequest):
     banco_apostas.append(registro)
     return {"status": "resultado registrado com sucesso"}
 
+@app.get("/status")
+def status_ia():
+    return {"status": "IA da Lotofácil operacional", "apostas_registradas": len(banco_apostas)}
+
 @app.get("/historico")
 def listar_historico():
     return banco_apostas
@@ -82,6 +85,6 @@ def calcular_frequencia():
     todas = [dezena for reg in registros for dezena in reg["dezenas"]]
     contagem = Counter(todas)
     resultado = [
-        {"dezena": i, "frequencia": contagem.get(i, 0)} for i in range(1, 25)
+        {"dezena": i, "frequencia": contagem.get(i, 0)} for i in range(1, 26)
     ]
     return resultado
