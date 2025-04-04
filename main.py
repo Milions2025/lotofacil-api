@@ -1,82 +1,118 @@
-# main.py
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from datetime import datetime
-import pytz
-import random
+// App.js
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 
-app = FastAPI()
+function App() {
+  const [apostas, setApostas] = useState([]);
+  const [apostaBonus, setApostaBonus] = useState(null);
+  const [apostaExperimental, setApostaExperimental] = useState(null);
+  const [apostaRefinada, setApostaRefinada] = useState(null);
+  const [historico, setHistorico] = useState([]);
+  const [frequencia, setFrequencia] = useState([]);
+  const [resposta, setResposta] = useState("");
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+  useEffect(() => {
+    fetchHistorico();
+    fetchFrequencia();
+  }, []);
 
-# Banco de dados em memória
-historico_apostas = []
-frequencia_dezenas = {}
+  const fetchApostas = async () => {
+    try {
+      const response = await axios.get("https://lotofacil-api.onrender.com/gerar-apostas");
+      setApostas(response.data.apostas || []);
+      setResposta("Apostas geradas com sucesso.");
+    } catch (error) {
+      console.error("Erro ao gerar apostas:", error);
+      setResposta("Erro ao gerar aposta.");
+    }
+  };
 
-class ApostaRequest(BaseModel):
-    dezenas: list[int]
+  const fetchBonus = async () => {
+    try {
+      const response = await axios.get("https://lotofacil-api.onrender.com/gerar-aposta-bonus");
+      setApostaBonus(response.data.aposta);
+    } catch (error) {
+      console.error("Erro ao gerar bônus:", error);
+    }
+  };
 
-# Utilitários
-fuso_brasilia = pytz.timezone("America/Sao_Paulo")
+  const fetchExperimental = async () => {
+    try {
+      const response = await axios.get("https://lotofacil-api.onrender.com/gerar-aposta-experimental");
+      setApostaExperimental(response.data.aposta);
+    } catch (error) {
+      console.error("Erro ao gerar experimental:", error);
+    }
+  };
 
-def gerar_aposta(tipo: str) -> list[int]:
-    aposta = sorted(random.sample(range(1, 26), 15))
-    data = datetime.now(fuso_brasilia).strftime("%d/%m/%Y %H:%M:%S")
-    historico_apostas.append({"tipo": tipo, "data": data, "dezenas": aposta})
-    for dezena in aposta:
-        frequencia_dezenas[dezena] = frequencia_dezenas.get(dezena, 0) + 1
-    return aposta
+  const fetchRefinada = async () => {
+    try {
+      const response = await axios.get("https://lotofacil-api.onrender.com/gerar-aposta-refinada");
+      setApostaRefinada(response.data.aposta);
+    } catch (error) {
+      console.error("Erro ao gerar refinada:", error);
+    }
+  };
 
-@app.get("/")
-def raiz():
-    return {"mensagem": "API da Lotofácil Online!"}
+  const fetchHistorico = async () => {
+    try {
+      const response = await axios.get("https://lotofacil-api.onrender.com/historico");
+      setHistorico(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error("Erro ao buscar histórico:", error);
+    }
+  };
 
-@app.get("/gerar-apostas")
-def gerar_apostas():
-    apostas = [gerar_aposta("Aposta Principal") for _ in range(3)]
-    return {"apostas": apostas}
+  const fetchFrequencia = async () => {
+    try {
+      const response = await axios.get("https://lotofacil-api.onrender.com/frequencia");
+      const dados = response.data;
+      setFrequencia(Array.isArray(dados) ? dados : []);
+    } catch (error) {
+      console.error("Erro ao buscar frequência:", error);
+      setFrequencia([]);
+    }
+  };
 
-@app.get("/gerar-aposta-bonus")
-def gerar_aposta_bonus():
-    aposta = gerar_aposta("Aposta Bônus")
-    return {"aposta": aposta}
+  return (
+    <div style={{ padding: 20 }}>
+      <h2>Painel IA da Lotofácil</h2>
 
-@app.get("/gerar-aposta-experimental")
-def gerar_aposta_experimental():
-    dezenas = random.sample(range(1, 26), 20)
-    aposta = sorted(dezenas[:15])
-    data = datetime.now(fuso_brasilia).strftime("%d/%m/%Y %H:%M:%S")
-    historico_apostas.append({"tipo": "Aposta Experimental", "data": data, "dezenas": aposta})
-    for dezena in aposta:
-        frequencia_dezenas[dezena] = frequencia_dezenas.get(dezena, 0) + 1
-    return {"aposta": aposta}
+      <button onClick={fetchApostas}>Gerar Aposta</button>
+      <button onClick={fetchRefinada}>Refinar Aposta</button>
+      <button onClick={fetchExperimental}>Status da IA</button>
+      <button onClick={fetchBonus}>Enviar Resultado Real</button>
 
-@app.get("/gerar-aposta-refinada")
-def gerar_aposta_refinada():
-    dezenas_comuns = sorted(frequencia_dezenas, key=frequencia_dezenas.get, reverse=True)[:10]
-    dezenas_restantes = list(set(range(1, 26)) - set(dezenas_comuns))
-    aposta = sorted(random.sample(dezenas_comuns, 10) + random.sample(dezenas_restantes, 5))
-    data = datetime.now(fuso_brasilia).strftime("%d/%m/%Y %H:%M:%S")
-    historico_apostas.append({"tipo": "Aposta Refinada", "data": data, "dezenas": aposta})
-    for dezena in aposta:
-        frequencia_dezenas[dezena] = frequencia_dezenas.get(dezena, 0) + 1
-    return {"aposta": aposta}
+      {resposta && <p><strong>Resposta:</strong> {resposta}</p>}
 
-@app.get("/historico")
-def ver_historico():
-    return historico_apostas
+      <hr />
+      <h3>Histórico de Apostas</h3>
+      {historico.length === 0 ? (
+        <p>Nenhuma aposta encontrada.</p>
+      ) : (
+        <ul>
+          {historico.map((item, index) => (
+            <li key={index}>
+              <strong>{item.tipo}</strong> | {item.data} | {item.dezenas.join(", ")}
+            </li>
+          ))}
+        </ul>
+      )}
 
-@app.get("/frequencia")
-def ver_frequencia():
-    return sorted(
-        [{"dezena": k, "frequencia": v} for k, v in frequencia_dezenas.items()],
-        key=lambda x: x["frequencia"],
-        reverse=True
-    )
+      <h3>Dezenas Mais Repetidas</h3>
+      {frequencia.length === 0 ? (
+        <p>Frequência ainda não disponível.</p>
+      ) : (
+        <ul>
+          {frequencia.map((item, index) => (
+            <li key={index}>
+              Dezena {item.dezena}: {item.frequencia}x
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export default App;
